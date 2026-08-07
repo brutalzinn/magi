@@ -29,6 +29,7 @@ MVP complete — Protocol 111 verified end-to-end in the browser (consensus + au
 > 🚀 **Deploy (end of Day 3)** — DONE: `make run` starts all 4; browser at `localhost:8111` drove a scenario to Protocol 111 consensus + auto-exec of notify_user.
 
 ## Done
+- ✅ 2026-08-07 **Realtime packet visualization.** Custom React Flow edge animates a glowing packet (dot) along the wire — gateway▶brain on dispatch, brain◀gateway on verdict — carrying a short content label. Wireshark-style packet inspector: list + detail pane with full request/response payloads. Per-brain independent timing. Persona baked into lean Modelfiles (`llama3.2:3b`, temps 0.1/0.2/0.15); hardcoded HP/Mana inference removed — brains reason from the scenario. Responsive/mobile. Verified in browser.
 - ✅ 2026-08-07 **Dashboard.** Single `gateway/static/index.html`: React 18 + React Flow (@xyflow/react) via esm.sh import map (no build, pure browser); chat box, gateway↔brain packet edges, per-brain verdict cards, WS client, reduce-motion. Renders + WS-connected verified in real browser (Playwright), 0 console errors.
 - ✅ 2026-08-07 **Gateway.** Fiber HTTP+WS on `:8111` (MAGI_HTTP_ADDR override): `/api/deliberate` (chat/scenario → Protocol 111), `/api/status`, `/api/tools`, `/ws` broadcast hub; orchestrator wired to live telemetry. Boots + serves catalog (verified). Brains dialled lazily.
 - ✅ 2026-08-07 **Consensus orchestrator.** `internal/consensus`: concurrent fan-out, unanimity (same AFFIRMATIVE + same tool, args from highest-confidence brain), Balthasar veto, re-deliberation with peer dissent, auto-exec gate, event emitter. 4/4 outcome tests green + gRPC brain client.
@@ -39,8 +40,18 @@ MVP complete — Protocol 111 verified end-to-end in the browser (consensus + au
 - ✅ 2026-08-07 **Proto + codegen.** `proto/magi.proto` (Brain: Deliberate/Health, Verdict enum, ToolSpec/ProposedAction/PeerDissent) → `gen/*.pb.go`; grpc+protobuf deps added; `go build ./gen/...` green.
 - ✅ 2026-08-07 **Scaffold + config.** dir tree, `go mod init github.com/danielbarboza/magi`, `magi.yaml` (models/addrs/consensus/tool allowlist, RAM guards), `.gitignore`, `ROADMAP.md`, `llm/` context. `git init` done.
 
+## Next — generic function-calling tool-use loop (decided 2026-08-07)
+Let the brains gather info instead of abstaining. Register a catalog of real tools —
+`web_search` (keyless), `fetch_url`/browser, `get_operator_state` (the personal 8neu health API,
+private token, local only), plus `notify_user`/`log_decision`. When a brain proposes an INFO tool,
+Magi (the hub) executes it and appends the result to the NEXT round's context for ALL three brains
+(shared, like peer dissent), then re-deliberates — bounded gather steps — until Protocol 111 on a
+terminal action. No hardcoded inference; models decide from tool results. Split tools into
+INFO (gather) vs ACTION (terminal) so consensus is computed on actions only.
+
 ## Parked (post-MVP — not now)
-Streaming token-by-token to dashboard, multi-scenario history/audit log, richer MCP server presets, per-brain model hot-swap UI.
+Streaming token-by-token to dashboard, multi-scenario history/audit log, richer MCP server presets,
+per-brain model hot-swap UI, vendoring React/React-Flow locally (currently esm.sh CDN).
 
 ---
 ## Reference
