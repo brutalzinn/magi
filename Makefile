@@ -2,7 +2,11 @@ BASE = llama3.2:3b
 BIN = bin
 MODULE = magi
 
-.PHONY: build models run test vet proto clean
+.PHONY: setup build models run test vet proto clean
+
+# One-shot local setup: pull the base model, build the three persona models, compile binaries.
+setup: models build
+	@echo "setup complete — start 'ollama serve', then run: make run"
 
 build:
 	@mkdir -p $(BIN)
