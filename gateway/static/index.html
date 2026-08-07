@@ -145,7 +145,10 @@ function PacketEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
           <circle r="10" fill=${dot} opacity="0.22" />
           <circle r="5.5" fill=${dot} opacity="0.5" />
           <circle r="3" fill="#ffffff" />
-          <animateMotion dur="1.1s" repeatCount="indefinite" keyPoints=${kp} keyTimes="0;1" calcMode="linear">
+          ${data && data.label && html`
+            <text x="10" y="-9" fontSize="11" fontFamily="ui-monospace, Menlo, monospace"
+              fill="#e6ebf2" stroke="#0b0d11" strokeWidth="3" paintOrder="stroke">${data.label}</text>`}
+          <animateMotion dur="1.4s" repeatCount="indefinite" keyPoints=${kp} keyTimes="0;1" calcMode="linear">
             <mpath href=${'#' + pid} />
           </animateMotion>
         </g>`}
@@ -181,6 +184,7 @@ function App() {
   const [motion, setMotion] = useState(!prefersReduced);
   // edgeDir[brain]: 'idle' | 'out' (gateway->brain) | 'in' (brain->gateway) | 'settled'
   const [edgeDir, setEdgeDir] = useState({});
+  const [edgeLabel, setEdgeLabel] = useState({});
   const [packets, setPackets] = useState([]);
   const [selectedPkt, setSelectedPkt] = useState(null);
   const threadRef = useRef(null);
@@ -216,13 +220,14 @@ function App() {
       let ev; try { ev = JSON.parse(e.data); } catch { return; }
       switch (ev.type) {
         case 'round_start':
-          setStatus('deliberating'); setRound(ev.round); setBrains(blankBrains()); setEdgeDir({});
+          setStatus('deliberating'); setRound(ev.round); setBrains(blankBrains()); setEdgeDir({}); setEdgeLabel({});
           pushPkt('sys', '—', `ROUND ${ev.round}`, 'deliberation started', { event: 'round_start', round: ev.round });
           break;
         case 'dispatch': { // packet gateway -> brain
           setEdgeDir((s) => ({ ...s, [ev.brain]: 'out' }));
           let full; try { full = JSON.parse(ev.payload); } catch { full = { payload: ev.payload }; }
           const sc = (full && full.scenario) || '';
+          setEdgeLabel((s) => ({ ...s, [ev.brain]: String(sc).slice(0, 16) || 'query' }));
           pushPkt('out', ev.brain, 'DISPATCH', `round ${(full && full.round) || ev.round} · ${String(sc).slice(0, 44)}`, full);
           break;
         }
@@ -230,6 +235,7 @@ function App() {
           setBrains((s) => ({ ...s, [ev.brain]: {
             verdict: ev.verdict, confidence: ev.confidence, reasoning: ev.reasoning, tool: ev.tool || '' } }));
           setEdgeDir((s) => ({ ...s, [ev.brain]: 'in' }));
+          setEdgeLabel((s) => ({ ...s, [ev.brain]: ev.verdict + (ev.tool ? ' ▸ ' + ev.tool : '') }));
           setTimeout(() => setEdgeDir((s) => (s[ev.brain] === 'in' ? { ...s, [ev.brain]: 'settled' } : s)), 1600);
           let args; try { args = JSON.parse(ev.args); } catch { args = ev.args; }
           const full = { brain: ev.brain, verdict: ev.verdict, confidence: ev.confidence,
@@ -301,7 +307,7 @@ function App() {
       : '#39414d';
     return {
       id: `e-${b}`, source: 'gateway', target: b, type: 'packet',
-      data: { active, dir, color, sw: dir === 'idle' ? 1.5 : 2.5 },
+      data: { active, dir, color, label: active ? (edgeLabel[b] || '') : '', sw: dir === 'idle' ? 1.5 : 2.5 },
     };
   });
 
