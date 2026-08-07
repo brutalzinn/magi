@@ -36,19 +36,26 @@
 
   .left { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
   .graphwrap { flex: 1; min-height: 0; position: relative; }
-  .packets { height: 220px; border-top: 1px solid var(--line); background: #0b0d11; display: flex; flex-direction: column; }
+  .packets { height: 250px; border-top: 1px solid var(--line); background: #0b0d11; display: flex; flex-direction: column; }
   .phead { padding: 6px 10px; font-size: 11px; letter-spacing: 1px; color: var(--muted);
     border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
-  .plog { flex: 1; overflow-y: auto; padding: 4px 0;
-    font: 11.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .pkt { display: flex; gap: 8px; padding: 1px 10px; }
+  .pbody { flex: 1; display: flex; min-height: 0; }
+  .plist { flex: 1.3; overflow-y: auto; padding: 3px 0; min-width: 0;
+    font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pdetail { flex: 1; overflow: auto; padding: 8px 10px; border-left: 1px solid var(--line);
+    min-width: 0; color: var(--muted); white-space: pre-wrap; word-break: break-word;
+    font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pkt { display: flex; gap: 8px; padding: 1px 10px; cursor: pointer; }
+  .pkt:hover { background: #12161c; }
+  .pkt.sel { background: #171d26; }
   .pkt .dir { flex: none; width: 12px; text-align: center; }
   .pkt.out .dir { color: var(--gw); }
   .pkt.in .dir { color: var(--aff); }
   .pkt.sys .dir { color: var(--muted); }
-  .pkt .who { flex: none; width: 72px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
-  .pkt .body { flex: 1; color: var(--text); opacity: 0.9; white-space: pre-wrap; word-break: break-word; }
+  .pkt .who { flex: none; width: 72px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pkt .body { flex: 1; color: var(--text); opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pkt .tag { color: var(--muted); margin-right: 4px; }
+  .dhead { color: var(--text); opacity: 0.9; margin-bottom: 6px; }
   .panels { background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
   .cards { display: flex; flex-direction: column; gap: 1px; background: var(--line); }
   .card { background: var(--panel2); padding: 10px 12px; }
@@ -175,12 +182,13 @@ function App() {
   // edgeDir[brain]: 'idle' | 'out' (gateway->brain) | 'in' (brain->gateway) | 'settled'
   const [edgeDir, setEdgeDir] = useState({});
   const [packets, setPackets] = useState([]);
+  const [selectedPkt, setSelectedPkt] = useState(null);
   const threadRef = useRef(null);
   const plogRef = useRef(null);
   const pktId = useRef(0);
 
-  const pushPkt = useCallback((dir, who, type, text) => setPackets((p) => {
-    const next = [...p, { id: ++pktId.current, dir, who, type, text: text || '' }];
+  const pushPkt = useCallback((dir, who, type, summary, full) => setPackets((p) => {
+    const next = [...p, { id: ++pktId.current, dir, who, type, summary: summary || '', full }];
     return next.length > 200 ? next.slice(next.length - 200) : next;
   }), []);
 
@@ -209,37 +217,39 @@ function App() {
       switch (ev.type) {
         case 'round_start':
           setStatus('deliberating'); setRound(ev.round); setBrains(blankBrains()); setEdgeDir({});
-          pushPkt('sys', '—', `ROUND ${ev.round}`, 'deliberation started');
+          pushPkt('sys', '—', `ROUND ${ev.round}`, 'deliberation started', { event: 'round_start', round: ev.round });
           break;
-        case 'grounding': // gateway resolved HP/Mana via a function call
-          pushPkt('sys', 'fn', 'GROUNDING', ev.message);
-          pushMsg('sys', `grounding · ${ev.message}`);
-          break;
-        case 'dispatch': // packet gateway -> brain
+        case 'dispatch': { // packet gateway -> brain
           setEdgeDir((s) => ({ ...s, [ev.brain]: 'out' }));
-          pushPkt('out', ev.brain, 'DISPATCH', ev.payload);
+          let full; try { full = JSON.parse(ev.payload); } catch { full = { payload: ev.payload }; }
+          const sc = (full && full.scenario) || '';
+          pushPkt('out', ev.brain, 'DISPATCH', `round ${(full && full.round) || ev.round} · ${String(sc).slice(0, 44)}`, full);
           break;
-        case 'verdict': // packet brain -> gateway
+        }
+        case 'verdict': { // packet brain -> gateway
           setBrains((s) => ({ ...s, [ev.brain]: {
             verdict: ev.verdict, confidence: ev.confidence, reasoning: ev.reasoning, tool: ev.tool || '' } }));
           setEdgeDir((s) => ({ ...s, [ev.brain]: 'in' }));
           setTimeout(() => setEdgeDir((s) => (s[ev.brain] === 'in' ? { ...s, [ev.brain]: 'settled' } : s)), 1600);
-          pushPkt('in', ev.brain, 'VERDICT',
-            `${ev.verdict} conf=${ev.confidence} action=${ev.tool || '-'} ${ev.args || ''} :: ${ev.reasoning || ''}`);
+          let args; try { args = JSON.parse(ev.args); } catch { args = ev.args; }
+          const full = { brain: ev.brain, verdict: ev.verdict, confidence: ev.confidence,
+            reasoning: ev.reasoning, action: { tool_name: ev.tool || '', args } };
+          pushPkt('in', ev.brain, 'VERDICT', `${ev.verdict} conf=${ev.confidence} → ${ev.tool || '-'}`, full);
           break;
+        }
         case 'consensus': setStatus('consensus'); settleAll();
-          pushPkt('sys', '111', 'CONSENSUS', `round ${ev.round} → ${ev.tool || '(none)'}`); break;
+          pushPkt('sys', '111', 'CONSENSUS', `round ${ev.round} → ${ev.tool || '(none)'}`, ev); break;
         case 'veto': setStatus('veto'); settleAll();
-          pushPkt('sys', 'balthasar', 'VETO', ev.message); pushMsg('sys', 'Balthasar protective veto'); break;
+          pushPkt('sys', 'balthasar', 'VETO', ev.message, ev); pushMsg('sys', 'Balthasar protective veto'); break;
         case 'deadlock': setStatus('deadlock'); settleAll();
-          pushPkt('sys', '—', 'DEADLOCK', ev.message); break;
+          pushPkt('sys', '—', 'DEADLOCK', ev.message, ev); break;
         case 'action':
-          pushPkt('sys', 'exec', 'ACTION', `${ev.tool}: ${ev.message || ''}`);
+          pushPkt('sys', 'exec', 'ACTION', `${ev.tool}: ${String(ev.message || '').slice(0, 40)}`, ev);
           pushMsg('sys', `action · ${ev.tool}: ${ev.message || ''}`); break;
         case 'notify':
-          pushPkt('sys', 'exec', 'NOTIFY', ev.message);
+          pushPkt('sys', 'exec', 'NOTIFY', String(ev.message || '').slice(0, 50), ev);
           pushMsg('sys', `notify · ${ev.message || ''}`); break;
-        case 'final': pushPkt('sys', '111', 'FINAL', ev.message); break;
+        case 'final': pushPkt('sys', '111', 'FINAL', String(ev.message || '').slice(0, 50), ev); break;
         default: break;
       }
     };
@@ -295,6 +305,12 @@ function App() {
     };
   });
 
+  // Wireshark-style detail: the selected (or latest) packet's full contents.
+  const selPkt = packets.find((p) => p.id === selectedPkt) || packets[packets.length - 1];
+  const detail = selPkt
+    ? html`<div class="dhead">${selPkt.dir === 'out' ? `gateway ▶ ${selPkt.who}` : selPkt.dir === 'in' ? `${selPkt.who} ◀ gateway` : selPkt.who} · ${selPkt.type}</div>${typeof selPkt.full === 'string' ? selPkt.full : JSON.stringify(selPkt.full, null, 2)}`
+    : 'waiting for packets…';
+
   return html`
     <div class="app">
       <div class="bar">
@@ -313,14 +329,17 @@ function App() {
           <//>
         </div>
         <div class="packets">
-          <div class="phead"><span>PACKET LOG · gRPC gateway ⇄ brains</span><span>${packets.length}</span></div>
-          <div class="plog" ref=${plogRef}>
-            ${packets.map((p) => html`
-              <div class="pkt ${p.dir}" key=${p.id}>
-                <span class="dir">${p.dir === 'out' ? '▶' : p.dir === 'in' ? '◀' : '·'}</span>
-                <span class="who">${p.who}</span>
-                <span class="body"><span class="tag">${p.type}</span>${p.text}</span>
-              </div>`)}
+          <div class="phead"><span>PACKET INSPECTOR · gRPC gateway ⇄ brains</span><span>${packets.length} pkts</span></div>
+          <div class="pbody">
+            <div class="plist" ref=${plogRef}>
+              ${packets.map((p) => html`
+                <div class="pkt ${p.dir} ${p.id === selectedPkt ? 'sel' : ''}" key=${p.id} onClick=${() => setSelectedPkt(p.id)}>
+                  <span class="dir">${p.dir === 'out' ? '▶' : p.dir === 'in' ? '◀' : '·'}</span>
+                  <span class="who">${p.who}</span>
+                  <span class="body"><span class="tag">${p.type}</span>${p.summary}</span>
+                </div>`)}
+            </div>
+            <div class="pdetail">${detail}</div>
           </div>
         </div>
       </div>

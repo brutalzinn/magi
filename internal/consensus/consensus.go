@@ -34,7 +34,7 @@ type Event struct {
 	Round      int    `json:"round,omitempty"`
 	Brain      string `json:"brain,omitempty"`
 	Verdict    string `json:"verdict,omitempty"`
-	Confidence int32  `json:"confidence,omitempty"`
+	Confidence int32  `json:"confidence"`
 	Reasoning  string `json:"reasoning,omitempty"`
 	Tool       string `json:"tool,omitempty"`
 	Args       string `json:"args,omitempty"`
