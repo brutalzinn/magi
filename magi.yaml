@@ -1,0 +1,44 @@
+# Magi System configuration.
+# Single source of truth for models, addresses, consensus, and tool execution.
+# RAM budget: keep total under 10GB. Spec models weigh ~4.3GB; num_ctx + keep_alive
+# below cap KV-cache growth and unload idle models so peak stays ~6GB.
+
+runtime:
+  ollama_url: http://localhost:11434
+  num_ctx: 2048          # tight context window to conserve RAM
+  keep_alive: "5m"       # unload a model after 5m idle
+  request_timeout: "120s"
+
+consensus:
+  max_rounds: 3          # Protocol 111 re-deliberation rounds before deadlock
+
+brains:
+  # Persona + temperature are baked into these Ollama models via Modelfile.<name>
+  # (all FROM llama3.2:3b). Register with: make models-personas (ollama create ...).
+  melchior:              # Analytical self — pure logic (temp 0.1)
+    model: "melchior"
+    grpc_addr: "127.0.0.1:50051"
+  balthasar:             # Protective self — holds the veto (temp 0.2)
+    model: "balthasar"
+    grpc_addr: "127.0.0.1:50052"
+  casper:                # Pragmatic/linear self (temp 0.15)
+    model: "casper"
+    grpc_addr: "127.0.0.1:50053"
+
+gateway:
+  http_addr: ":8111"   # avoids 80/443/3000/8000/8080 (in use); 8111 nods to Protocol 111
+
+tools:
+  # Execution modes: auto = run on Protocol 111 unanimity; confirm = require dashboard confirm.
+  # Unlisted tools default to confirm. Balthasar veto + unanimity always gate execution.
+  allowlist:
+    - name: "notify_user"
+      mode: "auto"
+    - name: "log_decision"
+      mode: "auto"
+  # External MCP servers whose tools join the catalog (official go-sdk client, stdio).
+  # Example:
+  #   - name: "filesystem"
+  #     command: "npx"
+  #     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+  mcp_servers: []

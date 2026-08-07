@@ -1,0 +1,21 @@
+# Binaries
+/bin/
+magi-melchior
+magi-balthasar
+magi-casper
+magi-gateway
+
+# Logs / runtime
+*.log
+/run/
+
+# OS
+.DS_Store
+
+# Test / tooling artifacts
+/.playwright-mcp/
+/.claude/
+magi-*.png
+
+# Durable LLM context — local only, never committed
+/llm/
