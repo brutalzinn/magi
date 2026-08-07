@@ -66,6 +66,7 @@
   .verdict.NEGATIVE { color: var(--neg); }
   .verdict.ABSTAIN, .verdict.PENDING { color: var(--abs); }
   .conf { color: var(--muted); font-size: 12px; }
+  .answer { color: var(--text); font-size: 13px; margin-top: 4px; }
   .reason { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
   .tool { color: var(--gw); font-size: 12px; }
 
@@ -169,7 +170,7 @@ const NODE_POS = {
 
 function blankBrains() {
   const s = {};
-  for (const b of BRAINS) s[b] = { verdict: 'PENDING', confidence: null, reasoning: '', tool: '' };
+  for (const b of BRAINS) s[b] = { verdict: 'PENDING', confidence: null, answer: '', reasoning: '', tool: '' };
   return s;
 }
 
@@ -233,9 +234,9 @@ function App() {
         }
         case 'verdict': { // packet brain -> gateway
           setBrains((s) => ({ ...s, [ev.brain]: {
-            verdict: ev.verdict, confidence: ev.confidence, reasoning: ev.reasoning, tool: ev.tool || '' } }));
+            verdict: ev.verdict, confidence: ev.confidence, answer: ev.answer || '', reasoning: ev.reasoning, tool: ev.tool || '' } }));
           setEdgeDir((s) => ({ ...s, [ev.brain]: 'in' }));
-          setEdgeLabel((s) => ({ ...s, [ev.brain]: ev.verdict + (ev.tool ? ' ▸ ' + ev.tool : '') }));
+          setEdgeLabel((s) => ({ ...s, [ev.brain]: ev.answer ? String(ev.answer).slice(0, 18) : ev.verdict }));
           setTimeout(() => setEdgeDir((s) => (s[ev.brain] === 'in' ? { ...s, [ev.brain]: 'settled' } : s)), 1600);
           let args; try { args = JSON.parse(ev.args); } catch { args = ev.args; }
           const full = { brain: ev.brain, verdict: ev.verdict, confidence: ev.confidence,
@@ -360,6 +361,7 @@ function App() {
                 ${brains[b].confidence != null && html`<span class="conf">conf ${brains[b].confidence}</span>`}
                 ${brains[b].tool && html`<span class="tool">→ ${brains[b].tool}</span>`}
               </div>
+              ${brains[b].answer && html`<div class="answer">${brains[b].answer}</div>`}
               ${brains[b].reasoning && html`<div class="reason">${brains[b].reasoning}</div>`}
             </div>`)}
         </div>

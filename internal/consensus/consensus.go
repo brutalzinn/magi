@@ -35,6 +35,7 @@ type Event struct {
 	Brain      string `json:"brain,omitempty"`
 	Verdict    string `json:"verdict,omitempty"`
 	Confidence int32  `json:"confidence"`
+	Answer     string `json:"answer,omitempty"`
 	Reasoning  string `json:"reasoning,omitempty"`
 	Tool       string `json:"tool,omitempty"`
 	Args       string `json:"args,omitempty"`
@@ -50,6 +51,7 @@ type Outcome struct {
 	Status     string                        `json:"status"` // consensus|veto|deadlock
 	Rounds     int                           `json:"rounds"`
 	Verdicts   []*magipb.DeliberateResponse  `json:"verdicts"` // last round
+	Answer     string                        `json:"answer,omitempty"` // agreed answer to the operator
 	Action     *magipb.ProposedAction        `json:"action,omitempty"`
 	Executed   bool                          `json:"executed"`
 	ExecResult string                        `json:"exec_result,omitempty"`
@@ -91,22 +93,28 @@ func (o *Orchestrator) Run(ctx context.Context, scenario string) (*Outcome, erro
 		}
 		last = resps
 
-		if action, ok := unanimous(resps); ok {
-			o.emit(Event{Type: "consensus", Round: round, Tool: action.ToolName, Args: action.ArgsJson})
-			return o.finish(ctx, "consensus", round, resps, action), nil
+		if allAffirmative(resps) {
+			answer := agreedAnswer(resps)
+			action := agreedAction(resps)
+			ev := Event{Type: "consensus", Round: round, Answer: answer}
+			if action != nil {
+				ev.Tool, ev.Args = action.ToolName, action.ArgsJson
+			}
+			o.emit(ev)
+			return o.finish(ctx, "consensus", round, resps, answer, action), nil
 		}
 
 		if vetoed(resps) {
 			o.emit(Event{Type: "veto", Round: round, Brain: "balthasar",
 				Message: "protective veto — action withheld"})
-			return o.finish(ctx, "veto", round, resps, nil), nil
+			return o.finish(ctx, "veto", round, resps, "", nil), nil
 		}
 
 		dissent = toPeerDissent(resps) // feed back for the next round
 	}
 
 	o.emit(Event{Type: "deadlock", Round: o.maxRounds, Message: "no unanimity"})
-	return o.finish(ctx, "deadlock", o.maxRounds, last, nil), nil
+	return o.finish(ctx, "deadlock", o.maxRounds, last, "", nil), nil
 }
 
 // deliberateAll fans out to every brain concurrently and preserves order.
@@ -136,8 +144,8 @@ func (o *Orchestrator) deliberateAll(ctx context.Context, scenario string, round
 			o.emit(Event{
 				Type: "verdict", Round: round, Brain: r.Brain,
 				Verdict: r.Verdict.String(), Confidence: r.Confidence,
-				Reasoning: r.Reasoning, Tool: r.ProposedAction.GetToolName(),
-				Args: r.ProposedAction.GetArgsJson(),
+				Answer: r.Answer, Reasoning: r.Reasoning,
+				Tool: r.ProposedAction.GetToolName(), Args: r.ProposedAction.GetArgsJson(),
 			})
 		}(i, b)
 	}
@@ -151,12 +159,15 @@ func (o *Orchestrator) deliberateAll(ctx context.Context, scenario string, round
 }
 
 // finish builds the outcome and executes the agreed action when consensus was reached.
-func (o *Orchestrator) finish(ctx context.Context, status string, rounds int, resps []*magipb.DeliberateResponse, action *magipb.ProposedAction) *Outcome {
-	out := &Outcome{Status: status, Rounds: rounds, Verdicts: resps, Action: action}
+func (o *Orchestrator) finish(ctx context.Context, status string, rounds int, resps []*magipb.DeliberateResponse, answer string, action *magipb.ProposedAction) *Outcome {
+	out := &Outcome{Status: status, Rounds: rounds, Verdicts: resps, Answer: answer, Action: action}
 
 	switch status {
 	case "consensus":
-		out.Summary = fmt.Sprintf("Protocol 111 reached in %d round(s).", rounds)
+		lead := answer
+		if lead == "" {
+			lead = "The three Magi reached unanimous agreement."
+		}
 		if action != nil && action.ToolName != "" && o.tools.Has(action.ToolName) {
 			if o.tools.ModeFor(action.ToolName) == tools.ModeAuto {
 				res, err := o.tools.Execute(ctx, action.ToolName, json.RawMessage(action.ArgsJson))
@@ -166,48 +177,76 @@ func (o *Orchestrator) finish(ctx context.Context, status string, rounds int, re
 				} else {
 					out.ExecResult = res.Content
 				}
-				out.Summary = fmt.Sprintf("Protocol 111 reached (%d round(s)). Executed %q: %s",
-					rounds, action.ToolName, out.ExecResult)
+				out.Summary = fmt.Sprintf("%s\n\n(executed %s: %s)", lead, action.ToolName, out.ExecResult)
 			} else {
-				out.Summary = fmt.Sprintf("Protocol 111 reached (%d round(s)). Action %q awaits confirmation.",
-					rounds, action.ToolName)
+				out.Summary = fmt.Sprintf("%s\n\n(action %s awaits confirmation)", lead, action.ToolName)
 			}
 			o.emit(Event{Type: "action", Tool: action.ToolName, Args: action.ArgsJson,
 				Message: out.ExecResult})
 		} else {
-			out.Summary = fmt.Sprintf("Protocol 111 reached (%d round(s)). No action taken (observe only).", rounds)
+			out.Summary = lead
 		}
 	case "veto":
 		out.Summary = "Balthasar veto — the action was withheld to protect you. " + balthasarReason(resps)
 	default: // deadlock
-		out.Summary = fmt.Sprintf("No unanimous decision after %d round(s) — nothing was auto-executed. Best guidance: %s",
+		out.Summary = fmt.Sprintf("No unanimous decision after %d round(s). Best guidance: %s",
 			rounds, bestReasoning(resps))
 	}
 
-	o.emit(Event{Type: "final", Round: rounds, Message: out.Summary})
+	o.emit(Event{Type: "final", Round: rounds, Answer: answer, Message: out.Summary})
 	return out
 }
 
-// unanimous reports whether all brains voted AFFIRMATIVE on the same tool.
-// The winning action (args) is taken from the highest-confidence brain.
-func unanimous(resps []*magipb.DeliberateResponse) (*magipb.ProposedAction, bool) {
+// allAffirmative reports Protocol 111: every brain voted AFFIRMATIVE.
+func allAffirmative(resps []*magipb.DeliberateResponse) bool {
 	if len(resps) == 0 {
-		return nil, false
+		return false
 	}
-	tool := resps[0].ProposedAction.GetToolName()
-	best := resps[0]
 	for _, r := range resps {
 		if r.Verdict != magipb.Verdict_AFFIRMATIVE {
-			return nil, false
+			return false
 		}
+	}
+	return true
+}
+
+// agreedAction returns an action only when all brains proposed the SAME non-empty
+// tool (args from the highest-confidence brain); otherwise nil (answer-only consensus).
+func agreedAction(resps []*magipb.DeliberateResponse) *magipb.ProposedAction {
+	if len(resps) == 0 {
+		return nil
+	}
+	tool := resps[0].ProposedAction.GetToolName()
+	if tool == "" {
+		return nil
+	}
+	best := resps[0]
+	for _, r := range resps {
 		if r.ProposedAction.GetToolName() != tool {
-			return nil, false
+			return nil
 		}
 		if r.Confidence > best.Confidence {
 			best = r
 		}
 	}
-	return best.ProposedAction, true
+	return best.ProposedAction
+}
+
+// agreedAnswer returns the highest-confidence non-empty answer among the brains.
+func agreedAnswer(resps []*magipb.DeliberateResponse) string {
+	var best *magipb.DeliberateResponse
+	for _, r := range resps {
+		if r.Answer == "" {
+			continue
+		}
+		if best == nil || r.Confidence > best.Confidence {
+			best = r
+		}
+	}
+	if best == nil {
+		return ""
+	}
+	return best.Answer
 }
 
 // vetoed reports a held Balthasar NEGATIVE (protective veto).

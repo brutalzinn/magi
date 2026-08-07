@@ -332,6 +332,7 @@ type DeliberateResponse struct {
 	Reasoning      string                 `protobuf:"bytes,4,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
 	ProposedAction *ProposedAction        `protobuf:"bytes,5,opt,name=proposed_action,json=proposedAction,proto3" json:"proposed_action,omitempty"`
 	LatencyMs      int64                  `protobuf:"varint,6,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	Answer         string                 `protobuf:"bytes,7,opt,name=answer,proto3" json:"answer,omitempty"` // the brain's direct answer/response to the operator
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -406,6 +407,13 @@ func (x *DeliberateResponse) GetLatencyMs() int64 {
 		return x.LatencyMs
 	}
 	return 0
+}
+
+func (x *DeliberateResponse) GetAnswer() string {
+	if x != nil {
+		return x.Answer
+	}
+	return ""
 }
 
 type HealthRequest struct {
@@ -526,7 +534,7 @@ const file_proto_magi_proto_rawDesc = "" +
 	"\bscenario\x18\x01 \x01(\tR\bscenario\x12\x14\n" +
 	"\x05round\x18\x02 \x01(\x05R\x05round\x12$\n" +
 	"\x05tools\x18\x03 \x03(\v2\x0e.magi.ToolSpecR\x05tools\x124\n" +
-	"\fpeer_dissent\x18\x04 \x03(\v2\x11.magi.PeerDissentR\vpeerDissent\"\xef\x01\n" +
+	"\fpeer_dissent\x18\x04 \x03(\v2\x11.magi.PeerDissentR\vpeerDissent\"\x87\x02\n" +
 	"\x12DeliberateResponse\x12\x14\n" +
 	"\x05brain\x18\x01 \x01(\tR\x05brain\x12'\n" +
 	"\averdict\x18\x02 \x01(\x0e2\r.magi.VerdictR\averdict\x12\x1e\n" +
@@ -536,7 +544,8 @@ const file_proto_magi_proto_rawDesc = "" +
 	"\treasoning\x18\x04 \x01(\tR\treasoning\x12=\n" +
 	"\x0fproposed_action\x18\x05 \x01(\v2\x14.magi.ProposedActionR\x0eproposedAction\x12\x1d\n" +
 	"\n" +
-	"latency_ms\x18\x06 \x01(\x03R\tlatencyMs\"\x0f\n" +
+	"latency_ms\x18\x06 \x01(\x03R\tlatencyMs\x12\x16\n" +
+	"\x06answer\x18\a \x01(\tR\x06answer\"\x0f\n" +
 	"\rHealthRequest\"R\n" +
 	"\x0eHealthResponse\x12\x14\n" +
 	"\x05brain\x18\x01 \x01(\tR\x05brain\x12\x14\n" +

@@ -56,6 +56,7 @@ message DeliberateResponse {
   string reasoning = 4;
   ProposedAction proposed_action = 5;
   int64 latency_ms = 6;
+  string answer = 7; // the brain's direct answer/response to the operator
 }
 
 message HealthRequest {}

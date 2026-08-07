@@ -21,6 +21,7 @@ var VerdictSchema = json.RawMessage(`{
 	"properties": {
 		"verdict": {"type": "string", "enum": ["AFFIRMATIVE", "NEGATIVE", "ABSTAIN"]},
 		"confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+		"answer": {"type": "string"},
 		"reasoning": {"type": "string"},
 		"action": {
 			"type": "object",
@@ -31,7 +32,7 @@ var VerdictSchema = json.RawMessage(`{
 			"required": ["tool_name"]
 		}
 	},
-	"required": ["verdict", "confidence", "reasoning", "action"]
+	"required": ["verdict", "confidence", "answer", "reasoning", "action"]
 }`)
 
 // Server implements magipb.BrainServer for one brain. Persona and temperature
@@ -54,6 +55,7 @@ func NewServer(name, model string, client *ollama.Client) *Server {
 type verdictOut struct {
 	Verdict    string          `json:"verdict"`
 	Confidence int             `json:"confidence"`
+	Answer     string          `json:"answer"`
 	Reasoning  string          `json:"reasoning"`
 	Action     struct {
 		ToolName string          `json:"tool_name"`
@@ -93,6 +95,7 @@ func (s *Server) Deliberate(ctx context.Context, req *magipb.DeliberateRequest) 
 		Brain:      s.name,
 		Verdict:    mapVerdict(out.Verdict),
 		Confidence: clampConfidence(out.Confidence),
+		Answer:     strings.TrimSpace(out.Answer),
 		Reasoning:  strings.TrimSpace(out.Reasoning),
 		ProposedAction: &magipb.ProposedAction{
 			ToolName: strings.TrimSpace(out.Action.ToolName),
@@ -135,15 +138,15 @@ func clampConfidence(c int) int32 {
 // a baked SYSTEM when a chat system message is sent — so we keep the persona
 // baked and pass this task contract in the user turn instead.
 const contract = `You are one of three Magi that must reach PROTOCOL 111 — a unanimous decision. ` +
-	`The system acts only when all three agree on the same verdict and the same action, then hands ` +
-	`the operator one clear path so they can rest. The scenario is the operator's own report of ` +
-	`their current state — reason directly from it; do not claim you lack access to their state. ` +
-	`Decide whether to ACT by choosing ONE tool from AVAILABLE TOOLS. Commit to a verdict; use ` +
-	`ABSTAIN only if the scenario is truly unintelligible. When the operator asks what to do, the ` +
-	`most helpful action is usually ONE clear next step via notify_user (a short, concrete ` +
-	`instruction in args.message). Reply with ONLY a JSON object: ` +
-	`{"verdict":"AFFIRMATIVE|NEGATIVE|ABSTAIN","confidence":0-100,"reasoning":"...",` +
-	`"action":{"tool_name":"<tool name or empty>","args":{}}}`
+	`Protocol 111 is reached when all three vote AFFIRMATIVE. The scenario is the operator's own ` +
+	`input — reason directly from it; do not claim you lack access. Always put your DIRECT answer to ` +
+	`the operator in "answer" (e.g. the result of a calculation, the fact, or the recommendation — ` +
+	`for "what is 2 plus 2?" the answer is "4"). Vote AFFIRMATIVE when your answer is correct/sound, ` +
+	`NEGATIVE if the request is unsafe or wrong, ABSTAIN only if truly unintelligible. Use "action" ` +
+	`ONLY when a tool should actually be run (e.g. notify_user to tell the operator something); for a ` +
+	`plain question, leave tool_name empty and just answer. Reply with ONLY a JSON object: ` +
+	`{"verdict":"AFFIRMATIVE|NEGATIVE|ABSTAIN","confidence":0-100,"answer":"<direct answer to the operator>",` +
+	`"reasoning":"<brief why>","action":{"tool_name":"<tool name or empty>","args":{}}}`
 
 // buildUserMessage renders the contract, the scenario, the available tool
 // catalog, and any peer dissent (present only on re-deliberation rounds).
