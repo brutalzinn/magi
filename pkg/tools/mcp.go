@@ -45,6 +45,7 @@ func (r *Registry) ConnectMCP(ctx context.Context, servers []config.MCPServer) e
 					Description: t.Description,
 					Schema:      schema,
 					Source:      "mcp:" + s.Name,
+					Kind:        KindAction,
 				},
 				toolName: t.Name,
 				session:  session,

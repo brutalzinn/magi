@@ -24,6 +24,7 @@ type BrainClient interface {
 type ToolExecutor interface {
 	Catalog() []tools.Spec
 	Has(name string) bool
+	IsAction(name string) bool
 	ModeFor(name string) tools.ExecMode
 	Execute(ctx context.Context, name string, args json.RawMessage) (tools.Result, error)
 }
@@ -95,7 +96,7 @@ func (o *Orchestrator) Run(ctx context.Context, scenario string) (*Outcome, erro
 
 		if allAffirmative(resps) {
 			answer := agreedAnswer(resps)
-			action := agreedAction(resps)
+			action := agreedAction(resps, o.tools.IsAction)
 			ev := Event{Type: "consensus", Round: round, Answer: answer}
 			if action != nil {
 				ev.Tool, ev.Args = action.ToolName, action.ArgsJson
@@ -168,7 +169,7 @@ func (o *Orchestrator) finish(ctx context.Context, status string, rounds int, re
 		if lead == "" {
 			lead = "The three Magi reached unanimous agreement."
 		}
-		if action != nil && action.ToolName != "" && o.tools.Has(action.ToolName) {
+		if action != nil && o.tools.Has(action.ToolName) {
 			if o.tools.ModeFor(action.ToolName) == tools.ModeAuto {
 				res, err := o.tools.Execute(ctx, action.ToolName, json.RawMessage(action.ArgsJson))
 				out.Executed = err == nil && !res.IsError
@@ -210,14 +211,12 @@ func allAffirmative(resps []*magipb.DeliberateResponse) bool {
 	return true
 }
 
-// agreedAction returns an action only when all brains proposed the SAME non-empty
-// tool (args from the highest-confidence brain); otherwise nil (answer-only consensus).
-func agreedAction(resps []*magipb.DeliberateResponse) *magipb.ProposedAction {
+func agreedAction(resps []*magipb.DeliberateResponse, isAction func(string) bool) *magipb.ProposedAction {
 	if len(resps) == 0 {
 		return nil
 	}
 	tool := resps[0].ProposedAction.GetToolName()
-	if tool == "" {
+	if tool == "" || !isAction(tool) {
 		return nil
 	}
 	best := resps[0]

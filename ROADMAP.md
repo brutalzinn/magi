@@ -17,14 +17,15 @@ scenario reaches Protocol 111 (no deadlock) by the brains calling a tool, not by
 interpretation.
 
 ## 🎯 Now
-Next: **#1 Tool kind (INFO vs ACTION)**.
+Next: **#2 web_search + fetch_url** (🟡). Timer stopped between tasks — start on go-ahead.
 > **Sync rule (WIP=1):** exactly one task is 🟡 at a time. On finish: mark ✅, log under Done (dated), promote next to 🟡, update this block. Never two 🟡; never lag.
+> **Per-task finish:** TDD (test first) → run `/simplify` on the diff → then mark done. Code: KISS, no comments, avoid `else`, design for reuse/extension.
 
 ## Plan — 3 days (deploy at end of each day)
 
 **📅 Day 1 — 2026-08-08 · Tool taxonomy + real INFO tools**
-1. 🟡 **Tool kind (INFO vs ACTION).** *(current)* Add `Kind` to `tools.Spec` (`pkg/tools/tools.go`); tag `notify_user`/`log_decision` ACTION in `RegisterBuiltins` (`pkg/tools/native.go`); compute unanimity on ACTION tools only (`internal/consensus/consensus.go` `unanimous()`).
-2. ⬜ **web_search + fetch_url.** New `pkg/tools/web.go`: `web_search` (keyless DuckDuckGo IA API), `fetch_url` (GET → strip to text), both INFO; register in `RegisterBuiltins`.
+1. ✅ **Tool kind (INFO vs ACTION).** Done — see Done section.
+2. 🟡 **web_search + fetch_url.** *(current)* New `pkg/tools/web.go`: `web_search` (keyless DuckDuckGo IA API), `fetch_url` (GET → strip to text), both INFO (`NewNativeInfoTool`); register in `RegisterBuiltins`.
 > 🚀 **Deploy (end of Day 1)** — `go test ./...`; live smoke a `web_search` call.
 
 **📅 Day 2 — 2026-08-09 · Gather loop + proto**
@@ -39,12 +40,13 @@ Next: **#1 Tool kind (INFO vs ACTION)**.
 > 🚀 **Deploy (end of Day 3)** — `make run`; `localhost:8111`; drive the HP/Mana scenario, confirm no deadlock.
 
 ## Done
+- ✅ 2026-08-08 **Tool kind (INFO vs ACTION).** `Kind` (action|info) + `IsAction()` on `tools.Spec` (zero value = action, so MCP tools stay executable); `NewNativeInfoTool` constructor; builtins tagged ACTION; consensus `agreedAction(resps, isAction)` filters proposed tools to ACTION-kind only via `actionSet(catalog)` — an INFO-tool proposal reaches answer-only consensus and executes nothing (gather loop lands in #4). TDD: `TestToolKind_Taxonomy`, `TestRun_InfoToolProposal_ConsensusButNoAction`; `go test ./...` green, vet clean. (Roadmap's original grounding named `unanimous()`, gone since the answer-field refactor; intent implemented on `allAffirmative`/`agreedAction`.)
 - ✅ 2026-08-07 **Answer field + relaxed consensus.** Each brain now returns a direct `answer` (proto `DeliberateResponse.answer`, `VerdictSchema`, contract in `internal/brain/brain.go`); Protocol 111 = all AFFIRMATIVE (`allAffirmative`), shared tool optional (`agreedAction`), agreed answer surfaced (`agreedAnswer`) in `internal/consensus/consensus.go`; dashboard shows each brain's answer + reply. Verified: "What is 2 plus 2?" → consensus 1 round, all answer "4", Magi replies "4" (was: 3-round deadlock / observe-only).
 - ✅ 2026-08-07 **Realtime packet visualization + persona models.** Custom React Flow edge animates a glowing packet along the wire (gateway▶brain dispatch, brain◀gateway verdict) carrying a short content label; Wireshark-style inspector (list + full-payload detail); responsive/mobile. Personas baked into lean `Modelfile.*` (`llama3.2:3b`, temps 0.1/0.2/0.15). Hardcoded HP/Mana inference removed. Verified in browser (consensus + deadlock paths).
 - ✅ 2026-08-07 **Protocol 111 MVP.** proto/gen (Brain gRPC); `pkg/ollama` (lean tool-calling client), `pkg/config`, `pkg/tools` (registry + native builtins + MCP go-sdk client); `internal/brain` (structured verdict via Ollama `format`); three services; `internal/consensus` (unanimity, Balthasar veto, re-deliberation with peer dissent, auto-exec) — 4/4 outcome tests green; gateway (Fiber HTTP/WS on `:8111`) + React dashboard. End-to-end: drove a scenario to Protocol 111 consensus + auto-exec of `notify_user`. Pushed to `github.com:brutalzinn/magi`.
 
 ## Parked (post-MVP — not now)
-Token-by-token streaming to dashboard, multi-scenario history/audit log, richer MCP presets, per-brain model hot-swap UI, vendoring React/React-Flow locally (currently esm.sh CDN).
+Expose Magi as a decision plugin for **Tesseract** (`../tesseract` calls Magi when it needs a decision — stable request/response wrapping `Orchestrator.Run`; tracker #8/172), token-by-token streaming to dashboard, multi-scenario history/audit log, richer MCP presets, per-brain model hot-swap UI, vendoring React/React-Flow locally (currently esm.sh CDN).
 
 ---
 ## Reference

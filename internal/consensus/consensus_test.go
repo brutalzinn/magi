@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	magipb "magi/gen"
@@ -46,6 +47,16 @@ func newRegistry() *tools.Registry {
 	return r
 }
 
+func newRegistryWithInfo() *tools.Registry {
+	r := newRegistry()
+	r.Register(tools.NewNativeInfoTool("peek", "look something up",
+		json.RawMessage(`{"type":"object"}`),
+		func(context.Context, json.RawMessage) (tools.Result, error) {
+			return tools.Result{Content: "peeked"}, nil
+		}))
+	return r
+}
+
 func brains(m, b, c BrainClient) []BrainClient { return []BrainClient{m, b, c} }
 
 func TestRun_ConsensusRound1_AutoExecutes(t *testing.T) {
@@ -64,6 +75,28 @@ func TestRun_ConsensusRound1_AutoExecutes(t *testing.T) {
 	}
 	if !out.Executed || out.Action.ToolName != "notify_user" {
 		t.Fatalf("expected notify_user executed, got %+v", out)
+	}
+}
+
+func TestRun_InfoToolProposal_ConsensusButNoAction(t *testing.T) {
+	o := New(brains(
+		&fakeBrain{name: "melchior", scripts: []*magipb.DeliberateResponse{aff(80, "peek")}},
+		&fakeBrain{name: "balthasar", scripts: []*magipb.DeliberateResponse{aff(70, "peek")}},
+		&fakeBrain{name: "casper", scripts: []*magipb.DeliberateResponse{aff(90, "peek")}},
+	), newRegistryWithInfo(), 3, nil)
+
+	out, err := o.Run(context.Background(), "scenario")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != "consensus" {
+		t.Fatalf("status=%s, want consensus", out.Status)
+	}
+	if out.Action != nil {
+		t.Fatalf("Action=%+v, want nil (INFO tool must not become an action)", out.Action)
+	}
+	if out.Executed {
+		t.Fatalf("Executed=true, want false for an INFO-tool proposal")
 	}
 }
 

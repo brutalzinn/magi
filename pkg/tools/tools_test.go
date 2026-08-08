@@ -50,3 +50,36 @@ func TestRegistry_BuiltinsExecAndMode(t *testing.T) {
 		t.Fatalf("expected error for unknown tool")
 	}
 }
+
+func TestToolKind_Taxonomy(t *testing.T) {
+	r := NewRegistry(nil)
+	RegisterBuiltins(r, nil)
+
+	for _, s := range r.Catalog() {
+		if s.Kind != KindAction {
+			t.Fatalf("builtin %q kind = %q, want %q", s.Name, s.Kind, KindAction)
+		}
+		if !s.IsAction() {
+			t.Fatalf("builtin %q IsAction() = false, want true", s.Name)
+		}
+		if !r.IsAction(s.Name) {
+			t.Fatalf("registry IsAction(%q) = false, want true", s.Name)
+		}
+	}
+
+	info := NewNativeInfoTool("peek", "look something up", json.RawMessage(`{"type":"object"}`),
+		func(context.Context, json.RawMessage) (Result, error) { return Result{Content: "x"}, nil })
+	if info.Spec().Kind != KindInfo {
+		t.Fatalf("info tool kind = %q, want %q", info.Spec().Kind, KindInfo)
+	}
+	if info.Spec().IsAction() {
+		t.Fatalf("info tool IsAction() = true, want false")
+	}
+
+	if (Spec{}).IsAction() {
+		t.Fatalf("unset-Kind Spec IsAction() = true, want false (only KindAction gates)")
+	}
+	if r.IsAction("unknown_tool") {
+		t.Fatalf("registry IsAction(unknown) = true, want false")
+	}
+}

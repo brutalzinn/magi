@@ -25,13 +25,23 @@ const (
 	ModeConfirm ExecMode = "confirm"
 )
 
+type Kind string
+
+const (
+	KindAction Kind = "action"
+	KindInfo   Kind = "info"
+)
+
 // Spec is the public description of a tool, advertised to the brains.
 type Spec struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
-	Schema      json.RawMessage `json:"schema"` // JSON Schema of parameters
-	Source      string          `json:"source"` // "native" or "mcp:<server>"
+	Schema      json.RawMessage `json:"schema"`
+	Source      string          `json:"source"`
+	Kind        Kind            `json:"kind"`
 }
+
+func (s Spec) IsAction() bool { return s.Kind == KindAction }
 
 // Result is the outcome of executing a tool.
 type Result struct {
@@ -110,6 +120,16 @@ func (r *Registry) ModeFor(name string) ExecMode {
 		return m
 	}
 	return r.defaultMode
+}
+
+func (r *Registry) IsAction(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.tools[name]
+	if !ok {
+		return false
+	}
+	return t.Spec().IsAction()
 }
 
 // Execute runs a tool by name with JSON arguments.

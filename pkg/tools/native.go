@@ -15,10 +15,17 @@ type NativeTool struct {
 	fn   NativeFunc
 }
 
-// NewNativeTool builds a native tool. schema is the JSON Schema of its parameters.
 func NewNativeTool(name, description string, schema json.RawMessage, fn NativeFunc) *NativeTool {
+	return newNative(name, description, schema, KindAction, fn)
+}
+
+func NewNativeInfoTool(name, description string, schema json.RawMessage, fn NativeFunc) *NativeTool {
+	return newNative(name, description, schema, KindInfo, fn)
+}
+
+func newNative(name, description string, schema json.RawMessage, kind Kind, fn NativeFunc) *NativeTool {
 	return &NativeTool{
-		spec: Spec{Name: name, Description: description, Schema: schema, Source: "native"},
+		spec: Spec{Name: name, Description: description, Schema: schema, Source: "native", Kind: kind},
 		fn:   fn,
 	}
 }
