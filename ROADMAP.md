@@ -17,7 +17,8 @@ scenario reaches Protocol 111 (no deadlock) by the brains calling a tool, not by
 interpretation.
 
 ## 🎯 Now
-Current: **#2 web_search + fetch_url** (🟡, started — tracker 166, timer running).
+Next: **#3 ToolResult over gRPC** (🟡). Timer stopped between tasks — start on go-ahead.
+> Note: #3 (proto ToolResult) + #4 (gather loop) are what give the INFO tools from #2 a runtime path; until then `web_search`/`fetch_url` are advertised but not yet invoked in a live deliberation. Live-smoke a real `web_search` (confirm DDG JSON field shape) at the Day-1 deploy.
 > **Sync rule (WIP=1):** exactly one task is 🟡 at a time. On finish: mark ✅, log under Done (dated), promote next to 🟡, update this block. Never two 🟡; never lag.
 > **Per-task finish:** TDD (test first) → run `/simplify` on the diff → then mark done. Code: KISS, no comments, avoid `else`, design for reuse/extension.
 
@@ -25,11 +26,11 @@ Current: **#2 web_search + fetch_url** (🟡, started — tracker 166, timer run
 
 **📅 Day 1 — 2026-08-08 · Tool taxonomy + real INFO tools**
 1. ✅ **Tool kind (INFO vs ACTION).** Done — see Done section.
-2. 🟡 **web_search + fetch_url.** *(current)* New `pkg/tools/web.go`: `web_search` (keyless DuckDuckGo IA API), `fetch_url` (GET → strip to text), both INFO (`NewNativeInfoTool`); register in `RegisterBuiltins`.
+2. ✅ **web_search + fetch_url.** Done — see Done section.
 > 🚀 **Deploy (end of Day 1)** — `go test ./...`; live smoke a `web_search` call.
 
 **📅 Day 2 — 2026-08-09 · Gather loop + proto**
-3. ⬜ **ToolResult over gRPC.** Add `repeated ToolResult` to `DeliberateRequest` (`proto/magi.proto`), regen; include results in `buildUserMessage` (`internal/brain/brain.go`).
+3. 🟡 **ToolResult over gRPC.** *(next)* Add `repeated ToolResult` to `DeliberateRequest` (`proto/magi.proto`), regen; include results in `buildUserMessage` (`internal/brain/brain.go`).
 4. ⬜ **Gather loop.** `internal/consensus/consensus.go` `Run()`: a brain proposing an INFO tool → Magi executes via registry → result shared to ALL brains next round (like peer dissent) → re-deliberate; bounded gather steps; consensus only on ACTION.
 > 🚀 **Deploy (end of Day 2)** — consensus tests incl. a gather→decide fake; `go test ./...` green.
 
@@ -40,6 +41,7 @@ Current: **#2 web_search + fetch_url** (🟡, started — tracker 166, timer run
 > 🚀 **Deploy (end of Day 3)** — `make run`; `localhost:8111`; drive the HP/Mana scenario, confirm no deadlock.
 
 ## Done
+- ✅ 2026-08-08 **web_search + fetch_url (INFO tools).** New `pkg/tools/web.go`: `web_search` (keyless DuckDuckGo Instant Answer API → text summary) + `fetch_url` (bounded GET → HTML stripped to text), both `KindInfo`. Explicit opt-in `RegisterWeb` at the gateway composition root (kept out of local-safe `RegisterBuiltins`); `registerWeb(client, base)` seam injects an httptest server. TDD: `web_test.go` drives real `Execute`/HTTP against test servers (search summary, HTML strip, empty-url error, INFO not action). `/simplify` applied (shared `stringArg`, `[]byte` httpGet, dead-field drop). `go test ./...` green, vet+gofmt clean. Pushed `5b99f10`. Live DDG-schema smoke pending at deploy.
 - ✅ 2026-08-08 **Tool kind (INFO vs ACTION).** `Kind` (action|info) + `IsAction()` on `tools.Spec` (zero value = action, so MCP tools stay executable); `NewNativeInfoTool` constructor; builtins tagged ACTION; consensus `agreedAction(resps, isAction)` filters proposed tools to ACTION-kind only via `actionSet(catalog)` — an INFO-tool proposal reaches answer-only consensus and executes nothing (gather loop lands in #4). TDD: `TestToolKind_Taxonomy`, `TestRun_InfoToolProposal_ConsensusButNoAction`; `go test ./...` green, vet clean. (Roadmap's original grounding named `unanimous()`, gone since the answer-field refactor; intent implemented on `allAffirmative`/`agreedAction`.)
 - ✅ 2026-08-07 **Answer field + relaxed consensus.** Each brain now returns a direct `answer` (proto `DeliberateResponse.answer`, `VerdictSchema`, contract in `internal/brain/brain.go`); Protocol 111 = all AFFIRMATIVE (`allAffirmative`), shared tool optional (`agreedAction`), agreed answer surfaced (`agreedAnswer`) in `internal/consensus/consensus.go`; dashboard shows each brain's answer + reply. Verified: "What is 2 plus 2?" → consensus 1 round, all answer "4", Magi replies "4" (was: 3-round deadlock / observe-only).
 - ✅ 2026-08-07 **Realtime packet visualization + persona models.** Custom React Flow edge animates a glowing packet along the wire (gateway▶brain dispatch, brain◀gateway verdict) carrying a short content label; Wireshark-style inspector (list + full-payload detail); responsive/mobile. Personas baked into lean `Modelfile.*` (`llama3.2:3b`, temps 0.1/0.2/0.15). Hardcoded HP/Mana inference removed. Verified in browser (consensus + deadlock paths).
