@@ -40,8 +40,8 @@ func (t *NativeTool) Call(ctx context.Context, args json.RawMessage) (Result, er
 // on the dashboard (and to logs). A nil sink is tolerated.
 type Sink func(tool, message string)
 
-// RegisterBuiltins adds the two safe demo tools: notify_user and log_decision.
-// Both are allowlisted for auto-execution in the default magi.yaml.
+// RegisterBuiltins adds the local-safe action tools: notify_user and log_decision.
+// Network/INFO tools (see RegisterWeb) are composed separately at the call site.
 func RegisterBuiltins(r *Registry, sink Sink) {
 	emit := func(tool, msg string) {
 		if sink != nil {

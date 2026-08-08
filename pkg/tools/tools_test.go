@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"magi/pkg/config"
@@ -16,13 +17,18 @@ func TestRegistry_BuiltinsExecAndMode(t *testing.T) {
 	})
 	RegisterBuiltins(r, func(tool, msg string) { emitted = append(emitted, tool+":"+msg) })
 
-	// Catalog has both builtins, sorted.
 	cat := r.Catalog()
-	if len(cat) != 2 {
-		t.Fatalf("catalog len = %d, want 2", len(cat))
+	names := make(map[string]bool, len(cat))
+	for _, s := range cat {
+		names[s.Name] = true
 	}
-	if cat[0].Name != "log_decision" || cat[1].Name != "notify_user" {
-		t.Fatalf("catalog not sorted as expected: %s, %s", cat[0].Name, cat[1].Name)
+	for _, want := range []string{"log_decision", "notify_user"} {
+		if !names[want] {
+			t.Fatalf("catalog missing builtin %q; got %v", want, names)
+		}
+	}
+	if !sort.SliceIsSorted(cat, func(i, j int) bool { return cat[i].Name < cat[j].Name }) {
+		t.Fatalf("catalog not sorted by name")
 	}
 
 	// Allowlisted tools resolve to auto; unlisted defaults to confirm.
@@ -54,16 +60,16 @@ func TestRegistry_BuiltinsExecAndMode(t *testing.T) {
 func TestToolKind_Taxonomy(t *testing.T) {
 	r := NewRegistry(nil)
 	RegisterBuiltins(r, nil)
+	RegisterWeb(r)
 
-	for _, s := range r.Catalog() {
-		if s.Kind != KindAction {
-			t.Fatalf("builtin %q kind = %q, want %q", s.Name, s.Kind, KindAction)
+	for _, name := range []string{"notify_user", "log_decision"} {
+		if !r.IsAction(name) {
+			t.Fatalf("action builtin %q IsAction() = false, want true", name)
 		}
-		if !s.IsAction() {
-			t.Fatalf("builtin %q IsAction() = false, want true", s.Name)
-		}
-		if !r.IsAction(s.Name) {
-			t.Fatalf("registry IsAction(%q) = false, want true", s.Name)
+	}
+	for _, name := range []string{"web_search", "fetch_url"} {
+		if r.IsAction(name) {
+			t.Fatalf("info tool %q IsAction() = true, want false", name)
 		}
 	}
 

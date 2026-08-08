@@ -9,11 +9,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofiber/contrib/websocket"
+	"github.com/gofiber/fiber/v2"
 	"magi/internal/consensus"
 	"magi/pkg/config"
 	"magi/pkg/tools"
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
 )
 
 var brainOrder = []string{"melchior", "balthasar", "casper"}
@@ -26,11 +26,12 @@ func main() {
 
 	h := newHub()
 
-	// Tool layer: builtins + any configured MCP servers.
+	// Tool layer: local builtins + web INFO tools + any configured MCP servers.
 	reg := tools.NewRegistry(cfg.Tools.Allowlist)
 	tools.RegisterBuiltins(reg, func(tool, msg string) {
 		h.broadcast(consensus.Event{Type: "notify", Tool: tool, Message: msg})
 	})
+	tools.RegisterWeb(reg)
 	if err := reg.ConnectMCP(context.Background(), cfg.Tools.MCPServers); err != nil {
 		log.Printf("gateway: MCP connect (continuing without): %v", err)
 	}

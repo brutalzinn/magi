@@ -49,14 +49,14 @@ type Emit func(Event)
 
 // Outcome is the final result of a deliberation.
 type Outcome struct {
-	Status     string                        `json:"status"` // consensus|veto|deadlock
-	Rounds     int                           `json:"rounds"`
-	Verdicts   []*magipb.DeliberateResponse  `json:"verdicts"` // last round
-	Answer     string                        `json:"answer,omitempty"` // agreed answer to the operator
-	Action     *magipb.ProposedAction        `json:"action,omitempty"`
-	Executed   bool                          `json:"executed"`
-	ExecResult string                        `json:"exec_result,omitempty"`
-	Summary    string                        `json:"summary"` // human reply for chat
+	Status     string                       `json:"status"` // consensus|veto|deadlock
+	Rounds     int                          `json:"rounds"`
+	Verdicts   []*magipb.DeliberateResponse `json:"verdicts"`         // last round
+	Answer     string                       `json:"answer,omitempty"` // agreed answer to the operator
+	Action     *magipb.ProposedAction       `json:"action,omitempty"`
+	Executed   bool                         `json:"executed"`
+	ExecResult string                       `json:"exec_result,omitempty"`
+	Summary    string                       `json:"summary"` // human reply for chat
 }
 
 // Orchestrator runs Protocol 111.

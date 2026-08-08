@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"magi/pkg/config"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"magi/pkg/config"
 )
 
 // ConnectMCP dials each configured MCP server over stdio, lists its tools, and

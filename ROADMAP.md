@@ -17,7 +17,7 @@ scenario reaches Protocol 111 (no deadlock) by the brains calling a tool, not by
 interpretation.
 
 ## 🎯 Now
-Next: **#2 web_search + fetch_url** (🟡). Timer stopped between tasks — start on go-ahead.
+Current: **#2 web_search + fetch_url** (🟡, started — tracker 166, timer running).
 > **Sync rule (WIP=1):** exactly one task is 🟡 at a time. On finish: mark ✅, log under Done (dated), promote next to 🟡, update this block. Never two 🟡; never lag.
 > **Per-task finish:** TDD (test first) → run `/simplify` on the diff → then mark done. Code: KISS, no comments, avoid `else`, design for reuse/extension.
 
