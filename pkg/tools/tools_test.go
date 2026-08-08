@@ -18,13 +18,10 @@ func TestRegistry_BuiltinsExecAndMode(t *testing.T) {
 	RegisterBuiltins(r, func(tool, msg string) { emitted = append(emitted, tool+":"+msg) })
 
 	cat := r.Catalog()
-	names := make(map[string]bool, len(cat))
-	for _, s := range cat {
-		names[s.Name] = true
-	}
+	have := names(cat)
 	for _, want := range []string{"log_decision", "notify_user"} {
-		if !names[want] {
-			t.Fatalf("catalog missing builtin %q; got %v", want, names)
+		if !have[want] {
+			t.Fatalf("catalog missing builtin %q; got %v", want, have)
 		}
 	}
 	if !sort.SliceIsSorted(cat, func(i, j int) bool { return cat[i].Name < cat[j].Name }) {
@@ -60,16 +57,10 @@ func TestRegistry_BuiltinsExecAndMode(t *testing.T) {
 func TestToolKind_Taxonomy(t *testing.T) {
 	r := NewRegistry(nil)
 	RegisterBuiltins(r, nil)
-	RegisterWeb(r)
 
 	for _, name := range []string{"notify_user", "log_decision"} {
 		if !r.IsAction(name) {
 			t.Fatalf("action builtin %q IsAction() = false, want true", name)
-		}
-	}
-	for _, name := range []string{"web_search", "fetch_url"} {
-		if r.IsAction(name) {
-			t.Fatalf("info tool %q IsAction() = true, want false", name)
 		}
 	}
 
@@ -88,4 +79,39 @@ func TestToolKind_Taxonomy(t *testing.T) {
 	if r.IsAction("unknown_tool") {
 		t.Fatalf("registry IsAction(unknown) = true, want false")
 	}
+}
+
+func TestExposedCatalog_OnlyExposedToolsAdvertised(t *testing.T) {
+	r := NewRegistry(nil)
+	RegisterBuiltins(r, nil) // notify_user + log_decision
+	r.Expose("notify_user")
+
+	full := names(r.Catalog())
+	if !full["notify_user"] || !full["log_decision"] {
+		t.Fatalf("Catalog() must keep the full registry, got %v", full)
+	}
+
+	exposed := names(r.ExposedCatalog())
+	if !exposed["notify_user"] {
+		t.Fatalf("ExposedCatalog() must include an exposed tool, got %v", exposed)
+	}
+	if exposed["log_decision"] {
+		t.Fatalf("ExposedCatalog() must hide an unexposed tool, got %v", exposed)
+	}
+}
+
+func TestExposedCatalog_FailClosedByDefault(t *testing.T) {
+	r := NewRegistry(nil)
+	RegisterBuiltins(r, nil)
+	if got := len(r.ExposedCatalog()); got != 0 {
+		t.Fatalf("ExposedCatalog() with no Expose() call = %d tools, want 0 (fail-closed)", got)
+	}
+}
+
+func names(specs []Spec) map[string]bool {
+	out := make(map[string]bool, len(specs))
+	for _, s := range specs {
+		out[s.Name] = true
+	}
+	return out
 }

@@ -22,7 +22,7 @@ type BrainClient interface {
 
 // ToolExecutor is the subset of *tools.Registry the orchestrator needs.
 type ToolExecutor interface {
-	Catalog() []tools.Spec
+	ExposedCatalog() []tools.Spec
 	Has(name string) bool
 	IsAction(name string) bool
 	ModeFor(name string) tools.ExecMode
@@ -80,7 +80,7 @@ func New(brains []BrainClient, tx ToolExecutor, maxRounds int, emit Emit) *Orche
 
 // Run executes the full Protocol 111 flow for a scenario.
 func (o *Orchestrator) Run(ctx context.Context, scenario string) (*Outcome, error) {
-	catalog := toToolSpecs(o.tools.Catalog())
+	catalog := toToolSpecs(o.tools.ExposedCatalog())
 
 	var last []*magipb.DeliberateResponse
 	var dissent []*magipb.PeerDissent

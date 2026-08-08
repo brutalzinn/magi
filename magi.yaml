@@ -29,6 +29,11 @@ gateway:
   http_addr: ":8111"   # avoids 80/443/3000/8000/8080 (in use); 8111 nods to Protocol 111
 
 tools:
+  # Magi is the gatekeeper: only tools listed here are advertised to the brains.
+  # Fail-closed — anything not listed stays hidden from deliberation (no internet tools).
+  expose:
+    - notify_user
+    - log_decision
   # Execution modes: auto = run on Protocol 111 unanimity; confirm = require dashboard confirm.
   # Unlisted tools default to confirm. Balthasar veto + unanimity always gate execution.
   allowlist:

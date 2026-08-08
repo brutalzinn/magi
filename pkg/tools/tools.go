@@ -60,6 +60,7 @@ type Registry struct {
 	mu          sync.RWMutex
 	tools       map[string]Tool
 	modes       map[string]ExecMode
+	exposed     map[string]bool
 	defaultMode ExecMode
 	closers     []io.Closer
 }
@@ -74,6 +75,7 @@ func NewRegistry(policies []config.ToolPolicy) *Registry {
 	return &Registry{
 		tools:       make(map[string]Tool),
 		modes:       modes,
+		exposed:     make(map[string]bool),
 		defaultMode: ModeConfirm,
 	}
 }
@@ -96,9 +98,34 @@ func (r *Registry) Register(t Tool) {
 func (r *Registry) Catalog() []Spec {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.specsWhere(func(string) bool { return true })
+}
+
+// Expose curates the deliberation surface: only exposed tools are advertised to
+// the brains (fail-closed — unlisted stays hidden from their prompt). This is a
+// curation boundary, not an execution one; running an agreed action stays gated
+// by the allowlist mode plus Protocol 111 unanimity and Balthasar's veto.
+func (r *Registry) Expose(names ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, n := range names {
+		r.exposed[n] = true
+	}
+}
+
+// ExposedCatalog returns the specs Magi advertises to the brains, sorted by name.
+func (r *Registry) ExposedCatalog() []Spec {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.specsWhere(func(name string) bool { return r.exposed[name] })
+}
+
+func (r *Registry) specsWhere(keep func(name string) bool) []Spec {
 	out := make([]Spec, 0, len(r.tools))
-	for _, t := range r.tools {
-		out = append(out, t.Spec())
+	for name, t := range r.tools {
+		if keep(name) {
+			out = append(out, t.Spec())
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

@@ -40,6 +40,7 @@ type GatewayConfig struct {
 }
 
 type ToolsConfig struct {
+	Expose     []string     `yaml:"expose"`
 	Allowlist  []ToolPolicy `yaml:"allowlist"`
 	MCPServers []MCPServer  `yaml:"mcp_servers"`
 }

@@ -41,7 +41,6 @@ func (t *NativeTool) Call(ctx context.Context, args json.RawMessage) (Result, er
 type Sink func(tool, message string)
 
 // RegisterBuiltins adds the local-safe action tools: notify_user and log_decision.
-// Network/INFO tools (see RegisterWeb) are composed separately at the call site.
 func RegisterBuiltins(r *Registry, sink Sink) {
 	emit := func(tool, msg string) {
 		if sink != nil {

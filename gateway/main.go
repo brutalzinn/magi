@@ -26,15 +26,16 @@ func main() {
 
 	h := newHub()
 
-	// Tool layer: local builtins + web INFO tools + any configured MCP servers.
+	// Tool layer: local builtins + any configured MCP servers. Magi gates which of
+	// these are advertised to the brains via the `expose` list (fail-closed).
 	reg := tools.NewRegistry(cfg.Tools.Allowlist)
 	tools.RegisterBuiltins(reg, func(tool, msg string) {
 		h.broadcast(consensus.Event{Type: "notify", Tool: tool, Message: msg})
 	})
-	tools.RegisterWeb(reg)
 	if err := reg.ConnectMCP(context.Background(), cfg.Tools.MCPServers); err != nil {
 		log.Printf("gateway: MCP connect (continuing without): %v", err)
 	}
+	reg.Expose(cfg.Tools.Expose...)
 	defer reg.Close()
 
 	// Dial the three brains in fixed order.
@@ -114,7 +115,8 @@ func main() {
 		return c.JSON(out)
 	})
 
-	// Tool catalog (for display).
+	// Raw tool inventory for display (the full registry, not the deliberation
+	// surface — only the `expose`d subset is advertised to the brains).
 	app.Get("/api/tools", func(c *fiber.Ctx) error {
 		return c.JSON(reg.Catalog())
 	})

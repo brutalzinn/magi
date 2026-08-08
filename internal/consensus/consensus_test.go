@@ -12,13 +12,18 @@ import (
 
 // fakeBrain returns a scripted verdict per round (index = round-1; last entry repeats).
 type fakeBrain struct {
-	name    string
-	scripts []*magipb.DeliberateResponse
+	name     string
+	scripts  []*magipb.DeliberateResponse
+	gotTools []string // tool names advertised on the last Deliberate call
 }
 
 func (f *fakeBrain) Name() string { return f.name }
 
 func (f *fakeBrain) Deliberate(_ context.Context, req *magipb.DeliberateRequest) (*magipb.DeliberateResponse, error) {
+	f.gotTools = f.gotTools[:0]
+	for _, t := range req.Tools {
+		f.gotTools = append(f.gotTools, t.Name)
+	}
 	i := int(req.Round) - 1
 	if i >= len(f.scripts) {
 		i = len(f.scripts) - 1
@@ -97,6 +102,26 @@ func TestRun_InfoToolProposal_ConsensusButNoAction(t *testing.T) {
 	}
 	if out.Executed {
 		t.Fatalf("Executed=true, want false for an INFO-tool proposal")
+	}
+}
+
+func TestRun_AdvertisesOnlyExposedTools(t *testing.T) {
+	r := newRegistry() // registers notify_user + log_decision
+	r.Expose("notify_user")
+
+	m := &fakeBrain{name: "melchior", scripts: []*magipb.DeliberateResponse{aff(80, "notify_user")}}
+	b := &fakeBrain{name: "balthasar", scripts: []*magipb.DeliberateResponse{aff(70, "notify_user")}}
+	c := &fakeBrain{name: "casper", scripts: []*magipb.DeliberateResponse{aff(90, "notify_user")}}
+	o := New(brains(m, b, c), r, 3, nil)
+
+	if _, err := o.Run(context.Background(), "scenario"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range []*fakeBrain{m, b, c} {
+		if len(f.gotTools) != 1 || f.gotTools[0] != "notify_user" {
+			t.Fatalf("%s advertised tools = %v, want [notify_user] only (Magi gates exposure)", f.name, f.gotTools)
+		}
 	}
 }
 
